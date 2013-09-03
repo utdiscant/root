@@ -873,7 +873,7 @@ bool CheckClassDef(const clang::RecordDecl *cl, const cling::Interpreter &interp
 
 
    // Detect if the class has a ClassDef
-   bool hasClassDef = ROOT::TMetaUtils::ClassInfo__HasMethod(cl,"Class_Version");
+   bool hasClassDef = ROOT::TMetaUtils::ClassInfo__HasMethod(cl,"Class_Version", interp);
 
    const clang::CXXRecordDecl* clxx = llvm::dyn_cast<clang::CXXRecordDecl>(cl);
    if (!clxx) {
@@ -914,7 +914,7 @@ string GetNonConstMemberName(const clang::FieldDecl &m, const string &prefix = "
 }
 
 //______________________________________________________________________________
-bool NeedExternalShowMember(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl_input)
+bool NeedExternalShowMember(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl_input, const cling::Interpreter &interp)
 {
    if (TMetaUtils::IsStdClass(*cl_input.GetRecordDecl())) {
       // getName() return the template name without argument!
@@ -930,7 +930,7 @@ bool NeedExternalShowMember(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl_inpu
    // This means templated classes hiding members won't have
    // a proper shadow class, and the user has no chance of
    // veto-ing a shadow, as we need it for ShowMembers :-/
-   if (ROOT::TMetaUtils::ClassInfo__HasMethod(cl_input,"ShowMembers"))
+   if (ROOT::TMetaUtils::ClassInfo__HasMethod(cl_input,"ShowMembers", interp))
       return R__IsTemplate(*cl_input);
 
    // no streamer, no shadow
@@ -1497,7 +1497,7 @@ void WriteStreamer(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
    // In case of VersionID<=0 write dummy streamer only calling
    // its base class Streamer(s). If no base class(es) let Streamer
    // print error message, i.e. this Streamer should never have been called.
-   int version = ROOT::TMetaUtils::GetClassVersion(clxx);
+   int version = ROOT::TMetaUtils::GetClassVersion(clxx, interp);
    if (version <= 0) {
       // We also need to look at the base classes.
       int basestreamer = 0;
@@ -1505,7 +1505,7 @@ void WriteStreamer(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
           iter != end;
           ++iter)
       {
-         if (ROOT::TMetaUtils::ClassInfo__HasMethod(iter->getType()->getAsCXXRecordDecl (),"Streamer")) {
+         if (ROOT::TMetaUtils::ClassInfo__HasMethod(iter->getType()->getAsCXXRecordDecl (),"Streamer", interp)) {
             string base_fullname;
             ROOT::TMetaUtils::R__GetQualifiedName(base_fullname,* iter->getType()->getAsCXXRecordDecl ());
 
@@ -1561,7 +1561,7 @@ void WriteStreamer(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
           iter != end;
           ++iter)
       {
-         if (ROOT::TMetaUtils::ClassInfo__HasMethod(iter->getType()->getAsCXXRecordDecl (),"Streamer")) {
+         if (ROOT::TMetaUtils::ClassInfo__HasMethod(iter->getType()->getAsCXXRecordDecl (),"Streamer", interp)) {
             string base_fullname;
             ROOT::TMetaUtils::R__GetQualifiedName(base_fullname,* iter->getType()->getAsCXXRecordDecl ());
 
@@ -1842,7 +1842,7 @@ void WriteStreamer(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
                      (*dictSrcOut) << "[R__i].Streamer(R__b);" << std::endl;
                   }
                } else {
-                  if (ROOT::TMetaUtils::ClassInfo__HasMethod(ROOT::TMetaUtils::R__GetUnderlyingRecordDecl(field_iter->getType()),"Streamer"))
+                  if (ROOT::TMetaUtils::ClassInfo__HasMethod(ROOT::TMetaUtils::R__GetUnderlyingRecordDecl(field_iter->getType()),"Streamer", interp))
                      (*dictSrcOut) << "      " << GetNonConstMemberName(**field_iter) << ".Streamer(R__b);" << std::endl;
                   else {
                      (*dictSrcOut) << "      R__b.StreamObject(&(" << field_iter->getName().str() << "),typeid("
@@ -1933,7 +1933,8 @@ void CallWriteStreamer(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
 
 //______________________________________________________________________________
 void WriteBodyShowMembers(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
-                          bool outside)
+                          bool outside,
+                          const cling::Interpreter &interp)
 {
    string csymbol;
    ROOT::TMetaUtils::R__GetQualifiedName(csymbol,*cl);
@@ -1947,7 +1948,7 @@ void WriteBodyShowMembers(const ROOT::TMetaUtils::AnnotatedRecordDecl &cl,
    }
 
    std::string getClass;
-   if (ROOT::TMetaUtils::ClassInfo__HasMethod(cl,"IsA") && !outside) {
+   if (ROOT::TMetaUtils::ClassInfo__HasMethod(cl,"IsA",interp) && !outside) {
       getClass = csymbol + "::IsA()";
    } else {
       getClass = "::ROOT::GenerateInitInstanceLocal((const ";
@@ -3121,9 +3122,9 @@ int RootCling(int argc,
    RScanner::ClassColl_t::const_iterator end = scan.fSelectedClasses.end();
    for( ; iter != end; ++iter)
    {
-      if (ROOT::TMetaUtils::ClassInfo__HasMethod(*iter,"Streamer")) {
+      if (ROOT::TMetaUtils::ClassInfo__HasMethod(*iter,"Streamer", interp)) {
          if (iter->RequestNoInputOperator()) {
-            int version = ROOT::TMetaUtils::GetClassVersion(*iter);
+            int version = ROOT::TMetaUtils::GetClassVersion(*iter, interp);
             if (version!=0) {
                // Only Check for input operator is the object is I/O has
                // been requested.
@@ -3222,7 +3223,7 @@ int RootCling(int argc,
             continue;
          }
          const clang::CXXRecordDecl* cxxdecl = llvm::dyn_cast<clang::CXXRecordDecl>(iter->GetRecordDecl());
-         if (cxxdecl && ROOT::TMetaUtils::ClassInfo__HasMethod(*iter,"Class_Name")) {
+         if (cxxdecl && ROOT::TMetaUtils::ClassInfo__HasMethod(*iter,"Class_Name", interp)) {
             WriteClassFunctions(cxxdecl);
          }
       }
